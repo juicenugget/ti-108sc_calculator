@@ -1,0 +1,227 @@
+body {
+  background-image:url('../images/Desktop_Picture.jpg');
+  background-color:#966F33;
+  color:white;
+  background-size:cover;
+  background-repeat:no-repeat;
+  font-family:comicsans;
+  font-size:1.4em;
+}
+
+#helpBar {
+  position:fixed;
+  top:0;
+  width:100%;
+  background-color:rgb(0,0,0);
+  background-color:rgba(0,0,0,.5);
+  font-size:1.2em;
+  cursor:pointer;
+  left:0;
+}
+
+#logo {
+  width:130px;
+}
+
+#calculator {
+  max-width:250px;
+  margin-top:8%;
+  margin-bottom:2%;
+  background-color:#0000EE;
+  border-bottom-right-radius:5%;
+  border-bottom-left-radius:5%;
+  box-shadow:5px 4px 10px 1px #000000;
+  border:3px outset #0000EE;
+}
+
+#memoryNegativeError {
+  margin-top:30px;
+  margin-bottom:-64px;
+  margin-left:8px;
+  width:7px !important;
+  padding-top:2px;
+  padding-left:10px;
+  font-size:13px;
+  font-family: 'Orbitron', sans-serif;
+  color:#000000;
+  background-color:#C0C0C0;
+  cursor:default;
+  border:1px inset #505050;
+  border-right:0 solid #C0C0C0;
+  border-top-right-radius:0;
+  border-bottom-right-radius:0;
+  line-height:75%;
+}
+
+#display {
+  display:inline-block;
+  max-width:180px;
+  margin-top:30px;
+  color:#000000;
+  background-color:#C0C0C0;
+  cursor:default;
+  font-size:25px;
+  font-family: 'Orbitron', sans-serif;
+  margin-bottom:10px;
+  margin-left:30px;
+  padding-top:0px;
+  padding-left:0px;
+  padding-right:2px;
+  border:1px inset #505050;
+  border-left:0 solid #C0C0C0;
+  border-top-left-radius:0;
+  border-bottom-left-radius:0;
+}
+
+.solarPanel {
+  height:30px;
+  background-color:#505050;
+  border-top:1px inset #000000;
+  border-bottom:1px inset #000000;
+}
+
+div .solarPanel:nth-child(4) {
+  border-left:1px inset #000000;
+}
+
+div .solarPanel:not(:nth-child(7)) {
+  border-right:1px solid #000000;
+}
+
+div .solarPanel:nth-child(7) {
+  border-right:1px inset #000000;
+}
+
+#brand {
+  font-weight:bold;
+  font-size:1.3em;
+  text-align:right;
+}
+
+#bottomLine {
+  border-bottom:1px outset #0000EE;
+  width:245px;
+  margin-left:-15px;
+}
+
+#buttons {
+  margin-top:45px;
+  border:1px inset #0000EE;
+  margin-left:-5px;
+  margin-right:-7px;
+  padding-left:5px;
+  height:280px;
+}
+
+#buttons button {
+  margin-left:1px;
+  margin-top:10px;
+  width:50px;
+  outline:none !important;
+}
+
+.btn-default {
+  color:darkblue;
+  font-weight:bold;
+  border:2px outset #000000;
+}
+
+.btn-danger {
+  border:2px outset #FF0000;
+}
+
+#equalsKey {
+  padding-bottom:50px;
+}
+
+#equalsKey:focus {
+  border:2px solid #000000;
+  outline:1px solid #000EE;
+}
+
+.moveUp {
+  margin-top:-33px !important;
+}
+
+.moveUp2 {
+  margin-top:-58px !important;
+}
+
+.btn-danger:focus {
+  background-color:#d9534f;
+  border:1px solid black;
+}
+
+.btn-default:focus {
+  background-color:#FFFFFF;
+  border:1px solid black;
+  color:darkblue;
+}
+
+.btn-default:hover, .btndefault:active {
+  color:darkblue;
+}
+
+#onButton {
+  padding-left:5px;
+
+}
+
+#MRCButton {
+  padding-left:8px;
+}
+
+.upsideDown {
+  -moz-transform: rotate(180deg);
+  -webkit-transform: rotate(180deg);
+  -ms-transform: rotate(180deg);
+  -o-transform: rotate(180deg);
+  transform:rotate(180deg);
+}
+
+.tooltip-inner {
+    white-space:pre-wrap;
+}
+
+.gray {
+  color:#999999 !important;
+}
+
+#myModal {
+  background-color:rgb(0, 0, 0);
+  background-color:rgba(0, 0, 0, .7);
+
+}
+
+.modal-dialog, .modal-content, .modal-header, .modal-body, .panel, .panel-default, .panel-heading {
+  background-color:rgb(0, 0, 0) !important;
+  background-color:rgba(0,0,0,0) !important;
+  color:#FFFFFF;
+}
+
+.panel-title a {
+  color:#FFFFFF;
+  text-decoration:none;
+  outline:none !important;
+}
+
+.modal-body {
+  font-size:1.1em;
+}
+
+.close {
+  color:#FFFFFF;
+}
+
+.dl-horizontal dt {
+  text-align:left;
+}
+
+.emphasize {
+  font-size:1.2em;
+  font-weight:bold;
+}
+
+#modalClose:hover {
+  color:#FFFFFF;
+}
