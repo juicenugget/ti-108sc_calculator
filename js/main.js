@@ -1,356 +1,443 @@
 $(document).ready(main);
 
 function main() {
-  var calc = new Calculator(true);
+  var calc = new Calculator();
 
-  $('#helpBar').on('click',function() {
-    $('#myModal').modal('show');
-  });
-  $('#buttons button').on('click',calc.btnHandler);
-  $('body').on('keypress',calc.keyHandler);
+  $('#buttons button').on('click', calc.buttonHandler);
+  $('body').on('keypress', calc.keyHandler.bind(calc));
+  $('#helpText').on('click', function() {$('#myModal').modal('show');});
+  $('#helpCloseButton').on('click', function() {$('#helpBar').addClass('hidden');});
 }
 
-var Calculator = function(orderOfOperations) {
-  //buttons
-  var numbersButtons = ['0','1','2','3','4','5','6','7','8','9','.'];
-  var displayUpdateButtons = numbersButtons.concat(['+/-','%','√']);
-  var operationsButtons = ['+','-','×','÷','='];
-  var memoryButtons = ['MRC', 'M-', 'M+'];
 
-  //display
-  var runningTotal, calculations = [], operationApplied = false, priorDisplayVal, priorOperator, priorCalculations = [], onButtonClickedOnce = false, followOrderOfOperations = orderOfOperations, equalsHit = false, memoryValue = 0, memoryButtonClickedOnce = false, displayVal, displayValStr = '', priorDisplayValStr, lastPressedOperator;
-  var currentDisplay = $('#display');
+var Calculator = function() {
+  this.displayObject = new Display($('#display'), $('#memoryIndicator'), $('#negativeIndicator'), $('#errorIndicator'));
+  this.engineObject = new Engine(true, this);
+  this.toggleElement = $('#calcTypeToggle'); //MDAS toggle switch uses the bootstrap-switch library
+  var self = this;
 
-  //MDAS toggle switch
-  $('#calcTypeToggle').bootstrapSwitch('size', 'mini');
-  $('#calcTypeToggle').bootstrapSwitch('onColor', 'success');
-  $('#calcTypeToggle').bootstrapSwitch('offColor', 'danger');
-  $('#calcTypeToggle').bootstrapSwitch('inverse',' true');
-  $('#calcTypeToggle').bootstrapSwitch('labelText', 'MDAS');
-  $('#calcTypeToggle').bootstrapSwitch('state',followOrderOfOperations);
-  $('#calcTypeToggle').bootstrapSwitch('onSwitchChange',function(event, state) {calculations=[]; runningTotal = undefined; currentDisplay.val(''); displayVal = 0; followOrderOfOperations = state;});
+  //initialize MDAS toggle switch
+  this.toggleElement.bootstrapSwitch('size', 'mini');
+  this.toggleElement.bootstrapSwitch('onColor', 'success');
+  this.toggleElement.bootstrapSwitch('offColor', 'danger');
+  this.toggleElement.bootstrapSwitch('inverse',' true');
+  this.toggleElement.bootstrapSwitch('labelText', 'MDAS');
+  this.toggleElement.bootstrapSwitch('state',this.engineObject.getFollowOrderOfOperations());
+  this.toggleElement.bootstrapSwitch('onSwitchChange',function(event, state) {
+                                                                                this.engineObject.setFollowOrderOfOperations(state);
+                                                                                this.engineObject.clearTotals();
+                                                                                this.displayObject.clearDisplay();
+                                                                                this.displayObject.blankDisplay();
+                                                                              }.bind(this));
 
-  var clearDisplay = function() {
-    setNegativeIndicator(true);
-    currentDisplay.val('');
-  };
+  //this.keymap maps the calculator keys to their buttonType and event.which keybindings. Keybindings are represented as arrays so more than one key can be assigned to an operation.
+  this.keymap = {'ON/C':['ON/C', [32, 122]], '.':['number', [46]], '0':['number', [48]], '1':['number', [49]], '2':['number', [50]], '3':['number', [51]],
+                    '4':['number', [52]], '5':['number', [53]], 6:['number', [54]], 7:['number', [55]], 8:['number', [56]], 9:['number', [57]],
+                    '+':['operation', [43]], '-':['operation', [45]], '×':['operation', [42]], '÷':['operation', [47, 92]], '=':['operation',[13, 61]],
+                    '+/-':['immediateoperation', [35]], '√':['immediateoperation',[36]], '%':['immediateoperation', [37]], 'MRC':['memory', [98]],
+                    'M+':['memory', [109]], 'M-':['memory', [110]]};
 
-  //returns true if the indicator is gray (positive number or 0), false otherwise
-  var getNegativeIndicator = function() {return $('#negativeIndicator').hasClass('gray');};
-  var setNegativeIndicator =function(bool) {if (typeof bool === 'boolean') bool ? $('#negativeIndicator').addClass('gray') : $('#negativeIndicator').removeClass('gray');};
-  var toggleNegativeIndicator = function() {$('#negativeIndicator').toggleClass('gray')};
+  this.buttonHandler = function() {//defined as a closure instead of a prototype method for access to 'self'
+    setTimeout(function() {$(this).blur();}.bind(this), 200);
+    var buttonCaption = $(this).text();
+    var buttonType = self.keymap[buttonCaption][0];
 
-  var getErrorIndicator = function() {return !$('#errorIndicator').hasClass('gray');};
-  var setErrorIndicator = function(bool) {if (typeof bool === 'boolean') bool ? $('#errorIndicator').removeClass('gray') : $('#errorIndicator').addClass('gray');};
-
-  var getDisplayStr = function() {return currentDisplay.val();};
-
-  //validates input and sets the display
-  var setDisplay = function() {
-
-    if (!isFinite(displayVal) || displayVal > 99999999 || displayVal < -99999999) {
-      setErrorIndicator(true);
-      clearDisplay();
-      return;
+    if (self.displayObject.hasError()) {
+        if (buttonCaption === 'ON/C') self.displayObject.clearError();
+        else return;
     }
+
     else {
-      var displayValLength = ('' + displayVal).split('').filter(function(x) {return Number.isInteger(+x);}).length;
-      if (displayValLength > 8) {
-        var decimalPosition = ('' + displayVal).indexOf('.');
+      if (buttonCaption !== 'ON/C') self.engineObject.setOnButtonClickedOnce(false);
+      if (buttonCaption !== 'MRC') self.engineObject.setMemoryButtonClickedOnce(false);
 
-        displayValStr = '' + +Math.abs(displayVal).toFixed(8 - decimalPosition);
-        //displayValStr = '' + +Math.abs(displayVal).toPrecision(8);
-      }
-      else displayValStr = '' + Math.abs(displayVal);
-    }
+        switch (buttonType) {
+          case 'ON/C':
+            if (self.engineObject.getOnButtonClickedOnce()) {
+              self.engineObject.clearTotals();
+            }
 
-    currentDisplay.val(displayValStr);
-    if (displayVal < 0) setNegativeIndicator(false);
-    else setNegativeIndicator(true);
-  };
+            else {
+              self.displayObject.clearDisplay();
+              self.engineObject.setOnButtonClickedOnce(true);
+            }
+            break;
 
-  //button handler
-  this.btnHandler = function()  {
-  var buttonCaption = $(this).text();
-  setTimeout(function() {$(this).blur();}.bind(this),200);
-  if (getErrorIndicator()) {
-    if (buttonCaption === 'ON/C') {
-    clearDisplay();
-    setErrorIndicator(false);
-    }
-    else return;
+          case 'number':
+            self.displayObject.updateDisplayNumber(buttonCaption);
+            break;
+
+          case 'operation':
+            if (self.displayObject.getTextValue() !== '') {
+              if (self.engineObject.getFollowOrderOfOperations()) {
+                if (buttonCaption!== '=') self.displayObject.setDisplayValue(self.engineObject.updateCalculations(buttonCaption, self.displayObject.getNumberValue()));
+
+                else {
+                self.displayObject.blankDisplay();
+                setTimeout(function() {self.displayObject.setDisplayValue(self.engineObject.calculateTotal(self.displayObject.getNumberValue()));}, 200);
+                }
+              }
+              else {
+                var runningTotal = self.engineObject.updateRunningTotal(buttonCaption, self.displayObject.getNumberValue());
+                if (buttonCaption !== '=') self.displayObject.setDisplayValue(runningTotal);
+                else {
+                  self.displayObject.blankDisplay();
+                  setTimeout(function() {self.displayObject.setDisplayValue(runningTotal);}, 200);
+                }
+              }
+            }
+            break;
+
+          case 'immediateoperation':
+            if (self.displayObject.getTextValue() !== '') {
+              if (buttonCaption!== '+/-') self.displayObject.setDisplayValue(self.engineObject.immediateOperations(buttonCaption, self.displayObject.getNumberValue(), self.displayObject.getPriorNumberValue()));
+              else self.displayObject.toggleNegative();
+            }
+            break;
+
+          case 'memory':
+            if (self.displayObject.getTextValue() !== '') {
+            var memoryValue = self.engineObject.updateMemory(buttonCaption, self.displayObject.getNumberValue());
+            if (memoryValue !== undefined) self.displayObject.setDisplayValue(memoryValue);
+            self.displayObject.setMemory(self.engineObject.getMemoryValue() !== 0);
+            self.displayObject.setDisplayValue();
+            }
+            break;
+        };
+      };
+    };
+}
+
+Calculator.prototype.keyHandler = function(event) {//binds keys to DOM buttons based on keymap bindings
+  var keyPressed = event.which;
+
+  if (keyPressed === 96) {
+    this.toggleElement.bootstrapSwitch('state', !this.engineObject.getFollowOrderOfOperations());
   }
 
-  if (buttonCaption !== 'ON/C') onButtonClickedOnce = false;
-  if (buttonCaption !== 'MRC') memoryButtonClickedOnce = false;
-
-  if (displayUpdateButtons.indexOf(buttonCaption) !== -1) updateDisplay(buttonCaption);
-  else if (operationsButtons.indexOf(buttonCaption) !== -1) {
-    lastPressedOperator = buttonCaption;
-    if (followOrderOfOperations) updateCalculations(buttonCaption);
-    else updateRunningTotal(buttonCaption);
-  }
-  else if (buttonCaption === 'ON/C') {
-    if (onButtonClickedOnce) {
-      if (followOrderOfOperations) {
-        calculations = [];
-        priorCalculations = [];
-        equalsHit = false;
-      }
-
-      else runningTotal = undefined;
-
-      onButtonClickedOnce = false;
-    }
-    else {
-      displayVal = 0;
-      setDisplay();
-      onButtonClickedOnce = true;
-      }
-    }
-  else if (memoryButtons.indexOf(buttonCaption) !== -1) memoryHandler(buttonCaption);
-  };
-
-  //keyboard handler
-  this.keyHandler = function(event) {
-    var keyMap = {43:'+', 45:'-', 42:'×', 47:'÷', 92:'÷', 13:'=', 32:'ON/C', 37:'%', 36:'√', 35:'+/-', 109:'M+', 110:'M-', 98:'MRC'};
-
-  var key = event.which, buttonToClick;
-  var keyChar = String.fromCharCode(key);
-
-  if (key === 96) {
-    $('#calcTypeToggle').bootstrapSwitch('state',!followOrderOfOperations);
-    return;
-  }
-  if (key === 104) {
+  else if (keyPressed === 104) {
     $('#myModal').modal('show');
     return;
-  }
-
-  keyChar = numbersButtons.indexOf(keyChar) !== -1 ? keyChar : keyMap[key];
-
-  buttonToClick = $('#buttons button').filter(function() {return $(this).text() === keyChar;});
-
-  buttonToClick.focus();
-  buttonToClick.trigger('click');
-  };
-
-  //memory Handler
-  function memoryHandler(mButton) {
-  //priorDisplayValStr = getDisplayStr();
-  priorDisplayVal = displayVal * (getNegativeIndicator() ? 1 : -1);
-
-  if (mButton === 'M+') {
-    if (!isFinite(memoryValue + priorDisplayVal) || (memoryValue + priorDisplayVal) > 99999999 || (memoryValue + priorDisplayVal) < -99999999) {
-      clearDisplay();
-      setErrorIndicator(true);
-    }
-    else {
-          memoryValue += priorDisplayVal;
-          operationApplied = true;
-    }
-  }
-
-  else if (mButton === 'M-') {
-    if (!isFinite(memoryValue - priorDisplayVal) || (memoryValue - priorDisplayVal) > 99999999 || (memoryValue - priorDisplayVal) < -99999999) {
-      clearDisplay();
-      setErrorIndicator(true);
-    }
-    else {
-      memoryValue -= priorDisplayVal;
-      operationApplied = true;
-    }
   }
 
   else {
-    if (memoryButtonClickedOnce) {
-      memoryValue = 0;
-      memoryButtonClickedOnce = false;
-    }
+    for (var key in this.keymap) {
+      if (this.keymap[key][1].indexOf(keyPressed) !== -1) {
+        var buttonToClick = $('#buttons button').filter(function() {return $(this).text() === key;});
+        buttonToClick.focus();
+        buttonToClick.trigger('click');
+        break;
+      };
+    };
+  };
+};
 
-    else {
-      displayVal = memoryValue;
-      setDisplay();
-      priorDisplayValStr = displayValStr;
-      operationApplied = true;
-      memoryButtonClickedOnce = true;
-      }
+var Display = function(displayElement, memoryElement, negativeElement, errorElement) { //The Display object holds and manipulates the display values for the calculator.
+  this.textValue = '';
+  this.priorTextValue = '';
+  this.numberValue = 0;
+  this.priorNumberValue = 0;
+  this.displayElement = displayElement; //jQuery element
+  this.displayElement.val(this.textValue);
+  this.memoryElement = memoryElement; //jQuery element
+  this.negativeElement = negativeElement; //jQuery element
+  this.operationApplied = false; //true when an operations button is hit. The next number pressed should reset the display rather than adding to it.
+  this.errorElement = errorElement; //jQuery element
+};
+
+Display.prototype.clearDisplay = function() {
+  this.numberValue = 0;
+  this.textValue = '0';
+  this.displayElement.val(this.textValue + '.');
+  this.setNegative(false);
+};
+
+Display.prototype.blankDisplay = function() {
+  this.setNegative(false);
+  this.displayElement.val('');
+}
+
+Display.prototype.getNumberValue = function() {
+  return this.numberValue;
+}
+
+Display.prototype.getPriorNumberValue = function() {
+  return this.priorNumberValue;
+}
+
+Display.prototype.getTextValue = function() {
+  return this.textValue;
+}
+
+Display.prototype.getPriorTextValue = function() {
+  return this.priorTextValue;
+}
+
+Display.prototype.updateDisplayNumber = function(numberButton) { //updates display as numbers are entered
+  var displayLength = this.textValue.split('').filter(function(x) {return Number.isInteger(+x);}).length;
+  if (this.operationApplied && this.textValue === this.priorTextValue) {//checks whether one of the operations buttons was pressed and the number hasn't changed yet
+    this.blankDisplay();
+    this.textValue = '';
+    displayLength = 0;
+    this.operationApplied = false;
+  }
+
+  if (displayLength < 8  && ((numberButton === '.' && this.textValue.indexOf(numberButton) === -1) || numberButton !== '.')) {
+    if (this.textValue === '' && numberButton === '.') this.textValue = '0';
+    this.textValue = (this.textValue === '0' && numberButton !=='.' ? '' : this.textValue) + numberButton;
+    this.displayElement.val(this.textValue + (this.textValue.indexOf('.') === -1 ? '.' : ''));
+    this.numberValue = +this.textValue * (this.isNegative() ? -1 : 1);
+  }
+};
+
+Display.prototype.setDisplayValue = function(value) { //updates display as numbers are calculated
+  if (value !== undefined) this.numberValue = value;
+  if (!isFinite(this.numberValue) || this.numberValue > 99999999 || this.numberValue < -99999999) {
+    this.setError();
+    return;
+  }
+
+  else {
+    this.textValue = '' + this.numberValue;
+    var displayValLength = this.textValue.split('').filter(function(x) {return Number.isInteger(+x);}).length;
+    if (displayValLength > 8) {
+      var decimalPosition = this.textValue.indexOf('.');
+
+      this.textValue = '' + +Math.abs(this.numberValue).toFixed(8 - decimalPosition); //absolute value is so the number can be campared later on in updateDisplayNumber (positive/negative status will be shown by the indicator)
     }
-  if (memoryValue === 0) $('#memoryIndicator').addClass('gray');
-  else $('#memoryIndicator').removeClass('gray');
+    else this.textValue = '' + Math.abs(this.numberValue);
   };
 
-  var updateDisplay = function(char) {
-  var displayLength = displayValStr.split('').filter(function(x) {return Number.isInteger(+x);}).length;
+  this.priorTextValue = this.textValue;
+  this.priorNumberValue = this.numberValue;
+  this.operationApplied = true;
+  this.displayElement.val(this.textValue + (this.textValue.indexOf('.') === -1 ? '.' : ''));
+  this.setNegative(this.numberValue < 0);
+};
 
-    if (numbersButtons.indexOf(char) !== -1) {
-      if (operationApplied && displayValStr === priorDisplayValStr) {
-        clearDisplay();
-        displayValStr = '';
-        displayLength = 0;
-        operationApplied = false;
-      }
+Display.prototype.setMemory = function(bool) {
+  if (bool) this.memoryElement.removeClass('gray');
+  else this.memoryElement.addClass('gray');
+};
 
-      if (displayLength < 8  && ((char === '.' && displayValStr.indexOf(char) === -1) || char !== '.')) {
+Display.prototype.setNegative = function(bool) {
+  if (bool) this.negativeElement.removeClass('gray');
+  else this.negativeElement.addClass('gray');
+};
 
-        if (displayValStr === '' && char === '.') char = '0.';
-        displayValStr = (displayValStr === '0' && char !=='.' ? '' : displayValStr) + char;
-        currentDisplay.val(displayValStr);
-        displayVal = +displayValStr * (getNegativeIndicator() ? 1 : -1);
-      }
-    }
-    else {
-      if (displayValStr !== '') {
-        displayVal = +displayValStr * (getNegativeIndicator() ? 1 : -1);
-        if (char === '%') {
-          var priorOperation = priorCalculations[1];
-          if (calculations.length === 0 && runningTotal === undefined) displayVal = displayVal / 100;
-          else displayVal = priorDisplayVal * (displayVal / 100);
-          setDisplay();
-          operationApplied = true;
-          priorDisplayValStr = displayValStr;
-        }
+Display.prototype.toggleNegative = function() { //+/- button behavior. Display value is set here because the display may not be ready to be converted to a number (for example, ending with a decimal).
+  this.negativeElement.toggleClass('gray');
+  this.numberValue = -1 * this.numberValue;
+};
 
-        else if (char === '√') {
-          displayVal = Math.sqrt(displayVal)
-          setDisplay();
-          operationApplied = true;
-          priorDisplayValStr = displayValStr;
-        }
+Display.prototype.isNegative = function() {
+  return !this.negativeElement.hasClass('gray');
+};
 
-      else if (char === '+/-' && displayValStr !== '') {
-        toggleNegativeIndicator();
-        }
-      }
-    }
-  };
+Display.prototype.setError = function() {
+  this.blankDisplay();
+  this.errorElement.removeClass('gray');
+};
 
-  //update the calculations array -- MDAS mode
-  var updateCalculations = function(operator) {
-  var calculationsLength = calculations.length;
+Display.prototype.clearError = function() {
+  this.errorElement.addClass('gray');
+  this.clearDisplay();
+};
 
-  if (displayValStr !== '') {
-    if (operator !== '=') {
-      priorCalculations = [displayVal * (getNegativeIndicator() ? 1 : -1), operator];
-      calculations = calculations.concat(priorCalculations);
-      priorDisplayValStr = displayValStr;
-      priorDisplayVal = displayVal * (getNegativeIndicator() ? 1 : -1);
-      operationApplied = true;
-    }
+Display.prototype.hasError = function() {
+  return !this.errorElement.hasClass('gray');
+};
 
-    else {
-      calculations.push(displayVal * (getNegativeIndicator() ? 1 : -1));
-      calcTotal();
-      }
-    }
-  };
+//object for underlying calculator engine
+var Engine = function(followOrderOfOperations, parentObject) {
+  this.onButtonClickedOnce = false; //number of times ON/C button clicked. Once to clear the display, the second time clears all calculations/running totals.
+  this.followOrderOfOperations = followOrderOfOperations;
+  this.calculations = [];
+  this.priorCalculations = [];
+  this.runningTotal = undefined;
+  this.memoryValue = 0;
+  this.priorOperator = undefined;
+  this.equalsHit = false; //used by the runningTotal function when MDAS mode is off to regulate behavior of repeatedly pressing the '=' button
+  this.memoryButtonClickedOnce = false;
+}
 
-  //calculate the calculations array -- MDAS mode
- var calcTotal = function() {
-  var calculationsLength = calculations.length, addInCalc, subInCalc, multInCalc, divInCalc, operationIndex, tmp;
-    priorCalculations = calculations.slice(-2);
+Engine.prototype.setOnButtonClickedOnce = function(bool) {
+  this.onButtonClickedOnce = bool;
+}
 
-  while (calculations.find(function(x) {return operationsButtons.indexOf(x) !== -1;})) {
-    if (calculations.find(function(x) {return ['×', '÷'].indexOf(x) !== -1;})) {
+Engine.prototype.getOnButtonClickedOnce = function() {
+  return this.onButtonClickedOnce;
+}
 
-      multInCalc = calculations.indexOf('×');
-      divInCalc = calculations.indexOf('÷');
+Engine.prototype.setMemoryButtonClickedOnce = function(bool) {
+  this.memoryButtonClickedOnce = bool;
+}
+
+Engine.prototype.getMemoryButtonClickedOnce = function() {
+  return this.memoryButtonClickedOnce;
+}
+
+Engine.prototype.setFollowOrderOfOperations = function(bool) {
+  this.followOrderOfOperations = bool;
+}
+
+Engine.prototype.getFollowOrderOfOperations = function() {
+  return this.followOrderOfOperations;
+}
+
+Engine.prototype.getMemoryValue = function() {
+  return this.memoryValue;
+}
+
+Engine.prototype.clearTotals = function() {
+  if (this.followOrderOfOperations) {
+    this.calculations = [];
+    this.priorCalculations = [];
+  }
+
+  else {
+    this.equalsHit = false;
+    this.runningTotal = undefined;
+  }
+
+    this.onButtonClickedOnce = false;
+}
+
+Engine.prototype.immediateOperations = function(char, numberValue, priorNumberValue) {
+
+  if (char === '%') {
+    var priorOperation = this.priorCalculations[1];
+    if (this.calculations.length === 0 && this.runningTotal === undefined) return numberValue /= 100;
+    else return priorNumberValue * (numberValue / 100);
+  }
+
+  else if (char === '√')  return Math.sqrt(numberValue);
+}
+
+Engine.prototype.updateCalculations = function(operator, numberValue) {
+    this.priorCalculations = [numberValue, operator];
+    this.calculations = this.calculations.concat(this.priorCalculations);
+};
+
+Engine.prototype.calculateTotal = function(numberValue) {
+  var addInCalc, subInCalc, multInCalc, divInCalc, operationIndex, tmp;
+  this.calculations.push(numberValue);
+  this.priorCalculations = this.calculations.slice(-2);
+
+  while (this.calculations.find(function(x) {return ['+', '-', '×', '÷'].indexOf(x) !== -1;})) {
+
+    if (this.calculations.find(function(x) {return ['×', '÷'].indexOf(x) !== -1;})) {
+
+      multInCalc = this.calculations.indexOf('×');
+      divInCalc = this.calculations.indexOf('÷');
 
       if (divInCalc === -1 || (divInCalc !== -1 && multInCalc !== -1 && multInCalc < divInCalc)) {
         operationIndex = multInCalc;
-        tmp = calculations[multInCalc - 1] * calculations[multInCalc + 1];
+        tmp = this.calculations[multInCalc - 1] * this.calculations[multInCalc + 1];
       }
       else {
         operationIndex = divInCalc;
-        tmp = calculations[divInCalc - 1] / calculations[divInCalc + 1];
+        tmp = this.calculations[divInCalc - 1] / this.calculations[divInCalc + 1];
       };
     }
-    else if (calculations.find(function(x) {return ['+', '-'].indexOf(x) !== -1;})) {
-      addInCalc = calculations.indexOf('+');
-      subInCalc = calculations.indexOf('-');
+
+    else if (this.calculations.find(function(x) {return ['+', '-'].indexOf(x) !== -1;})) {
+      addInCalc = this.calculations.indexOf('+');
+      subInCalc = this.calculations.indexOf('-');
 
       if (subInCalc === -1 || (subInCalc !== -1 && addInCalc !== -1 && addInCalc < subInCalc)) {
         operationIndex = addInCalc;
-        tmp = calculations[addInCalc - 1] + calculations[addInCalc + 1];
+        tmp = this.calculations[addInCalc - 1] + this.calculations[addInCalc + 1];
       }
       else {
         operationIndex = subInCalc;
-        tmp = calculations[subInCalc - 1] - calculations[subInCalc + 1];
+        tmp = this.calculations[subInCalc - 1] - this.calculations[subInCalc + 1];
       }
     }
-    calculations.splice(operationIndex, 2);
-    calculations[operationIndex - 1] = tmp;
+
+    this.calculations.splice(operationIndex, 2);
+    this.calculations[operationIndex - 1] = tmp;
   }
 
-  displayVal = calculations[0];
-  clearDisplay();
-  setTimeout(function() {setDisplay();
-                         priorDisplayValStr = displayValStr;
-                         priorDisplayVal = displayVal;
-                         operationApplied = true;
-                        }, 200);
-  calculations = [];
-  };
+  return this.calculations.pop();
+};
 
-  //running Total - continuous calculation mode
-  var updateRunningTotal = function(operator) {
-  var currentDisplayVal;
-  displayVal = displayVal * (getNegativeIndicator() ? 1 : -1);
-  currentDisplayVal = displayVal;
+Engine.prototype.updateRunningTotal = function(operator, numberValue) {
+  var currentValue = numberValue;
 
+    if (operator === '=' && this.equalsHit) {
+    operator = this.priorCalculations[1];
+    numberValue = this.priorCalculations[0];
+  }
 
-    if (operator === '=' && equalsHit) {
-    operator = priorCalculations[1];
-    displayVal = priorCalculations[0];
+  else if (this.equalsHit && operator !== '=') {
+    this.priorCalculations = [];
+    this.runningTotal = undefined;
+    this.priorOperator = undefined;
+    this.equalsHit = false;
   }
 
   else {
-    priorCalculations = [];
-    equalsHit = false;
+    this.priorCalculations = [];
   }
 
-  if (priorOperator !== undefined) {
-    switch(priorOperator) {
+  if (this.priorOperator !== undefined && this.runningTotal !== undefined) {
+    switch(this.priorOperator) {
       case '+':
-      runningTotal = runningTotal === undefined ? displayVal : runningTotal + displayVal;
-      break;
+        this.runningTotal = this.runningTotal + numberValue;
+        break;
 
       case '-':
-      runningTotal = runningTotal === undefined ? displayVal : runningTotal - displayVal;
-      break;
+        this.runningTotal = this.runningTotal - numberValue;
+        break;
 
       case '×':
-      runningTotal = runningTotal === undefined ? displayVal : runningTotal * displayVal;
-      break;
+        this.runningTotal = this.runningTotal * numberValue;
+        break;
 
       case '÷':
-      runningTotal = runningTotal === undefined ? displayVal : runningTotal / displayVal;
-      break;
+        this.runningTotal = this.runningTotal / numberValue;
+        break;
     }
   }
-  else runningTotal = displayVal;
+  else this.runningTotal = numberValue;
 
-  displayVal = runningTotal;
-  if (operator === '=') {
-    clearDisplay();
-    setTimeout(function() {
-                           setDisplay();
-                           priorDisplayValStr = displayValStr;
-                           priorDisplayVal = displayVal;
-                           operationApplied = true;}, 200);
-  }
-  else setDisplay();
-
-  priorDisplayValStr = displayValStr;
-  priorDisplayVal = displayVal;
-  operationApplied = true;
   if (operator !== '=') {
-    priorOperator = operator;
-    priorCalculations = [currentDisplayVal,operator];
+    this.priorCalculations = [currentValue, operator];
+    this.priorOperator = operator;
   }
-  else if (!equalsHit) {
-    priorCalculations = [currentDisplayVal, operator];
-    equalsHit = true;
-    }
+
+  else if (!this.equalsHit) {
+    this.priorCalculations = [currentValue, operator];
+    this.equalsHit = true;
   };
+
+  return this.runningTotal;
+}
+
+Engine.prototype.updateMemory = function(mButton, numberValue) {
+
+  if (mButton === 'M+') {
+    var newValue = this.memoryValue + numberValue;
+    if (!isFinite(newValue) || newValue > 99999999 || newValue < -99999999)  return newValue;
+    else  this.memoryValue += numberValue;
+  }
+
+  else if (mButton === 'M-') {
+    var newValue = this.memoryValue - numberValue;
+    if (!isFinite(newValue) || newValue > 99999999 || newValue < -99999999) return newValue;
+    else this.memoryValue -= numberValue;
+  }
+
+  else {//MRC button
+    if (this.memoryButtonClickedOnce) {
+      this.memoryValue = 0;
+      this.memoryButtonClickedOnce = false;
+    }
+
+    else {
+      this.memoryButtonClickedOnce = true;
+      return this.memoryValue;
+    }
+  }
 }
