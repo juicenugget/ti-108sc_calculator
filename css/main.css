@@ -5,6 +5,8 @@ body {
   background-size:cover;
   font-family:comicsans;
   font-size:1.4em;
+  overflow-y: hidden; /* Hide vertical scrollbar */
+  overflow-x: hidden; /* Hide horizontal scrollbar */
 }
 
 #helpBar {
